@@ -1,0 +1,129 @@
+from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from typing import List, Optional, Literal
+from pathlib import Path
+from openai import OpenAI, RateLimitError
+from voice import synthesize_speech
+from transcribe import transcribe_file
+from prosody import detect_tone
+
+def load_api_key() -> str:
+    """
+    Load the OpenAI API key from zelda_key.env (same folder as main.py).
+    The file should contain ONLY the key on a single line.
+    """
+    env_path = Path(__file__).with_name("zelda_key.env")
+    if not env_path.exists():
+        raise RuntimeError(
+            f"API key file not found at {env_path}. "
+            "Create zelda_key.env with your OpenAI key in it."
+        )
+    key = env_path.read_text(encoding="utf-8").strip()
+    if not key:
+        raise RuntimeError("zelda_key.env is empty. Put your OpenAI key in it.")
+    return key
+
+# Initialize OpenAI client using key from file
+client = OpenAI(api_key=load_api_key())
+
+# Audio dir + FastAPI app + static mount
+BASE_DIR = Path(__file__).parent
+AUDIO_DIR = BASE_DIR / "audio"
+AUDIO_DIR.mkdir(exist_ok=True)
+
+# --- Static video clips for Zelda avatar ---
+BASE_DIR = Path(__file__).resolve().parent
+VIDEO_DIR = BASE_DIR / "video"
+
+app = FastAPI()
+app.mount("/audio", StaticFiles(directory=str(AUDIO_DIR)), name="audio")
+app.mount("/video", StaticFiles(directory=str(VIDEO_DIR)), name="video")
+
+# Allow frontend (e.g. index.html opened from file:// or localhost)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # for local dev; we can tighten later
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class HistoryItem(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+class ChatRequest(BaseModel):
+    message: str
+    history: Optional[List[HistoryItem]] = None
+
+class ChatResponse(BaseModel):
+    reply: str
+    audio_url: Optional[str] = None
+    tone: Optional[str] = None
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(req: ChatRequest):
+    """
+    Simple endpoint:
+    - Takes your latest message + previous history (optional)
+    - Calls OpenAI Chat API as "Zelda"
+    - Generates speech audio via voice.synthesize_speech()
+    - Returns reply text + audio URL
+    """
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are Zelda, a warm, calm, slightly playful AI friend who knows Aleks well. "
+                "You respond concisely, clearly, and kindly."
+            ),
+        }
+    ]
+
+    if req.history:
+        for item in req.history:
+            messages.append({"role": item.role, "content": item.content})
+
+    messages.append({"role": "user", "content": req.message})
+
+    try:
+        # 1. Chat response
+        completion = client.chat.completions.create(
+            model="gpt-4.1-mini",  # gpt-5.1-mini not available 
+            messages=messages,
+        )
+        reply_text = completion.choices[0].message.content.strip()
+        tone = detect_tone(reply_text)
+    except RateLimitError:
+        reply_text = (
+            "It looks like the API key I'm using has run out of quota or there's "
+            "a billing/quota issue. Once that's sorted, I'll be able to reply normally again."
+        )
+        return ChatResponse(reply=reply_text, audio_url=None, tone="neutral")
+    except Exception as e:
+        reply_text = f"Something went wrong talking to the chat model: {e}"
+        return ChatResponse(reply=reply_text, audio_url=None, tone="neutral")
+
+    # 2. Generate audio for the reply (separate voice module)
+    audio_url = synthesize_speech(reply_text)
+
+    return ChatResponse(reply=reply_text, audio_url=audio_url, tone=tone)
+    
+@app.post("/transcribe")
+async def transcribe_audio(file: UploadFile = File(...)):
+    """
+    Accept an audio file (e.g. from the browser) and return a text transcription.
+    Uses the helper in transcribe.py.
+    """
+    try:
+        # Ensure we're at the start of the uploaded file
+        file.file.seek(0)
+        text = transcribe_file(file.file)
+        print("Transcribed text:", repr(text))
+        return {"text": text}
+    except Exception as e:
+        print("Transcription error:", e)
+        return {"text": ""}
+

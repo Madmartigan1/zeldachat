@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Zelda Chat (Local)</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 900px;
+      margin: 20px auto;
+      padding: 0 10px;
+    }
+    h1 {
+      text-align: center;
+    }
+    #layout {
+      display: flex;
+      gap: 16px;
+      align-items: stretch;
+    }
+    #avatarPanel {
+      width: 260px;
+      text-align: center;
+    }
+
+    /* Keep a fixed portrait box so PNG and video match perfectly */
+    #avatarWrapper {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+      aspect-ratio: 2 / 3;  /* fits your 1024x1536 image nicely */
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid #ccc;
+      box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+      transition: box-shadow 0.3s ease;
+      margin: 0 auto 8px auto;
+      background: #000;
+    }
+
+    #avatarWrapper img,
+    #avatarWrapper video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* PNG is the default idle view */
+    #avatarImg {
+      display: block;
+      z-index: 1;
+    }
+
+    #avatarVideo {
+      display: none;       /* only visible while speaking */
+      z-index: 2;
+    }
+
+    /* When playing, swap to video */
+    #avatarWrapper.playing #avatarImg {
+      display: none;
+    }
+    #avatarWrapper.playing #avatarVideo {
+      display: block;
+    }
+
+	
+    /* Tone-based glow around the avatar */
+    #avatarWrapper.tone-sympathetic {
+      box-shadow: 0 0 18px rgba(120, 180, 255, 0.9);
+    }
+
+    #avatarWrapper.tone-encouraging {
+      box-shadow: 0 0 18px rgba(120, 220, 160, 0.9);
+    }
+
+    #avatarWrapper.tone-celebratory {
+      box-shadow: 0 0 18px rgba(255, 210, 120, 0.95);
+    }
+
+    #avatarWrapper.tone-caution {
+      box-shadow: 0 0 18px rgba(255, 160, 80, 0.95);
+    }
+
+    #avatarWrapper.tone-warm_playful {
+      box-shadow: 0 0 18px rgba(255, 150, 200, 0.9);
+    }
+
+    #avatarWrapper.tone-neutral {
+      box-shadow: 0 0 8px rgba(0, 0, 0, 0.15);
+    }
+    #chatPanel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    #chat {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px;
+      height: 400px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      background: #f9f9f9;
+      display: flex;
+      flex-direction: column;
+    }
+    .message {
+      margin: 6px 0;
+      padding: 6px 8px;
+      border-radius: 6px;
+      max-width: 80%;
+      white-space: pre-wrap;
+    }
+    .user {
+      background: #d9e7ff;
+      align-self: flex-end;
+      margin-left: auto;
+    }
+    .assistant {
+      background: #e8ffe6;
+      align-self: flex-start;
+      margin-right: auto;
+    }
+    #inputRow {
+      display: flex;
+      gap: 6px;
+    }
+    #messageInput {
+      flex: 1;
+      padding: 8px;
+      font-size: 14px;
+	  min-height: 48px;
+      /* height will be controlled via JS to auto-fit content */
+      resize: none;
+      box-sizing: border-box;
+      overflow-y: hidden; /* until we hit the max height in JS */
+    }
+    #sendBtn,
+    #voiceBtn,
+    #micBtn {
+      padding: 8px 14px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #voiceBtn,
+    #micBtn {
+      min-width: 40px;
+    }
+    #status {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+      min-height: 16px;
+    }
+	/* Recording equalizer indicator */
+    #recordingIndicator {
+      display: inline-flex;
+      gap: 3px;
+      align-items: flex-end;
+      height: 12px;
+      margin-right: 6px;
+    }
+
+    .record-bar {
+      width: 3px;
+      border-radius: 2px;
+      background: #d33;
+      animation: equalize 0.6s infinite ease-in-out;
+    }
+
+    .record-bar:nth-child(2) {
+      animation-delay: 0.15s;
+    }
+
+    .record-bar:nth-child(3) {
+      animation-delay: 0.3s;
+    }
+
+    @keyframes equalize {
+      0%   { height: 3px;  opacity: 0.4; }
+      50%  { height: 12px; opacity: 1;   }
+      100% { height: 3px;  opacity: 0.4; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Chat with Zelda (Local)</h1>
+
+  <div id="layout">
+    <div id="avatarPanel">
+      <div id="avatarWrapper">
+        <!-- Idle portrait PNG -->
+        <img src="zelda.PNG" alt="Zelda Avatar" id="avatarImg" />
+        <!-- Tone-based SadTalker clip (src set in JS) -->
+        <video
+          id="avatarVideo"
+          muted
+          playsinline
+          loop
+        ></video>
+      </div>
+
+      <div id="avatarName">Zelda</div>
+      <div id="avatarSubtitle">Your AI friend & co-pilot</div>
+    </div>
+
+    <!-- Chat panel -->
+    <div id="chatPanel">
+      <div id="chat"></div>
+
+      <div id="inputRow">
+        <textarea
+          id="messageInput"
+          placeholder="Type a message for Zelda..."
+          onkeydown="handleInputKeydown(event)"
+          rows="2"
+        ></textarea>
+        <button
+          id="micBtn"
+          title="Start voice input"
+          onclick="toggleRecording()"
+        >
+          🎤
+        </button>
+        <button id="sendBtn" onclick="sendMessage()">Send</button>
+        <button
+          id="voiceBtn"
+          title="Toggle Zelda's voice"
+          onclick="playLastVoice()"
+        >
+          🔊
+        </button>
+      </div>
+
+      <div id="status"></div>
+    </div>
+  </div> <!-- end #layout -->
+
+  <script>
+
+    const BASE_URL = "http://127.0.0.1:8000";
+    const API_URL = BASE_URL + "/chat";
+    const VIDEO_BASE_URL = BASE_URL + "/video/";
+
+    // Map backend tone → SadTalker clip
+    const toneToVideo = {
+      bummed:      "zelda_bummed.mp4",
+      caution:     "zelda_caution.mp4",
+      encouraging: "zelda_encouraging.mp4",
+      excited:     "zelda_excited.mp4",
+      happy:       "zelda_happy.mp4",
+      intrigued:   "zelda_intrigued.mp4",
+      neutral:     "zelda_neutral.mp4",
+      playful:     "zelda_playful.mp4",
+      reassuring:  "zelda_reassuring.mp4",
+      sympathetic: "zelda_sympathetic.mp4",
+    };
+
+    // Conversation history sent to backend so it has context.
+    let history = [];
+
+    // Last audio URL for replay button
+    let lastAudioUrl = null;
+	// Single shared Audio object so we can stop/start cleanly
+    let currentAudio = null;
+
+    const chatDiv = document.getElementById("chat");
+    const messageInput = document.getElementById("messageInput");
+    const statusDiv = document.getElementById("status");
+    const voiceBtn = document.getElementById("voiceBtn");
+    const micBtn = document.getElementById("micBtn");
+    const avatarWrapper = document.getElementById("avatarWrapper");
+    const avatarVideo = document.getElementById("avatarVideo");
+	
+	const MAX_INPUT_HEIGHT = 200; // px
+	
+	let isRecording = false;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+	
+
+   function setSpeakingState(isSpeaking) {
+     if (!avatarWrapper) return;
+     if (isSpeaking) {
+       avatarWrapper.classList.add("speaking");
+     } else {
+       avatarWrapper.classList.remove("speaking");
+     }
+   }
+
+   function setAvatarTone(tone) {
+     if (!avatarWrapper) return;
+     const tones = [
+       "tone-sympathetic",
+       "tone-encouraging",
+       "tone-celebratory",
+       "tone-caution",
+       "tone-warm_playful",
+       "tone-neutral",
+     ];
+     avatarWrapper.classList.remove(...tones);
+
+     let cls;
+     switch (tone) {
+       case "sympathetic":
+         cls = "tone-sympathetic";
+         break;
+       case "encouraging":
+         cls = "tone-encouraging";
+         break;
+       case "celebratory":
+         cls = "tone-celebratory";
+         break;
+       case "caution":
+         cls = "tone-caution";
+         break;
+       case "warm_playful":
+         cls = "tone-warm_playful";
+         break;
+       default:
+         cls = "tone-neutral";
+     }
+     avatarWrapper.classList.add(cls);
+   }
+
+	function updateAvatarVideoForTone(tone) {
+     if (!avatarVideo) return;
+     const clip = toneToVideo[tone] || toneToVideo["neutral"];
+     const src = VIDEO_BASE_URL + clip;
+
+     // Avoid redundant reloads
+     if (avatarVideo.getAttribute("data-src") !== src) {
+       avatarVideo.src = src;
+       avatarVideo.setAttribute("data-src", src);
+     }
+   }
+
+   function startAvatarVideo() {
+     if (!avatarWrapper || !avatarVideo) return;
+     avatarWrapper.classList.add("playing");
+     try {
+       avatarVideo.currentTime = 0;
+       avatarVideo.play().catch(err => {
+         console.warn("Avatar video play failed:", err);
+       });
+     } catch (e) {
+       console.warn("Error starting avatar video:", e);
+     }
+   }
+
+   function stopAvatarVideo() {
+     if (!avatarWrapper || !avatarVideo) return;
+     try {
+       avatarVideo.pause();
+       avatarVideo.currentTime = 0;
+     } catch (e) {
+       console.warn("Error stopping avatar video:", e);
+     }
+     avatarWrapper.classList.remove("playing");
+   }
+
+
+    function setVoiceButtonState(isPlaying) {
+      if (!voiceBtn) return;
+      // 🔊 when idle, ❌ when "voice active"
+      voiceBtn.textContent = isPlaying ? "❌" : "🔊";
+      voiceBtn.title = isPlaying
+        ? "Stop Zelda's voice"
+        : "Play Zelda's voice";
+    }
+
+    // Initial state: not playing
+    function setMicButtonState(recording) {
+      if (!micBtn) return;
+      isRecording = recording;
+      if (recording) {
+        micBtn.textContent = "⏹"; // stop icon
+        micBtn.title = "Stop recording";
+
+        // Show equalizer + "Listening..." text
+        statusDiv.innerHTML = `
+          <span id="recordingIndicator">
+            <span class="record-bar"></span>
+            <span class="record-bar"></span>
+            <span class="record-bar"></span>
+          </span>
+          <span id="recordingLabel">Listening... speak to Zelda.</span>
+        `;
+      } else {
+        micBtn.textContent = "🎤";
+        micBtn.title = "Start voice input";
+        // Let other code (like transcription) update statusDiv as needed,
+        // so we only clear it if we're not in the middle of another status.
+        if (statusDiv.innerHTML.includes("recordingIndicator")) {
+          statusDiv.textContent = "";
+        }
+      }
+    }
+
+    // Initial states
+    setVoiceButtonState(false);
+    setMicButtonState(false);
+	setAvatarTone("neutral");
+	
+	function autoResizeInput() {
+      if (!messageInput) return;
+      // Reset height to calculate scrollHeight correctly
+      messageInput.style.height = "auto";
+      const newHeight = Math.min(messageInput.scrollHeight, MAX_INPUT_HEIGHT);
+      messageInput.style.height = newHeight + "px";
+      messageInput.style.overflowY =
+        messageInput.scrollHeight > MAX_INPUT_HEIGHT ? "auto" : "hidden";
+    }
+
+    if (messageInput) {
+      messageInput.addEventListener("input", autoResizeInput);
+      // Initialize size on load
+      autoResizeInput();
+    }
+
+	// Handle Enter vs Shift+Enter in the textarea
+    function handleInputKeydown(event) {
+      if (event.key === "Enter" && !event.shiftKey) {
+        // Enter alone: send message
+        event.preventDefault(); // prevent newline
+        sendMessage();
+      }
+      // Shift+Enter falls through and creates a newline naturally
+    }
+
+    function appendMessage(role, text) {
+      const msg = document.createElement("div");
+      msg.classList.add("message");
+      msg.classList.add(role === "user" ? "user" : "assistant");
+      msg.textContent = (role === "user" ? "You: " : "Zelda: ") + text;
+      chatDiv.appendChild(msg);
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+    }
+
+	    async function toggleRecording() {
+      if (isRecording) {
+        // Stop recording
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+          mediaRecorder.stop();
+        }
+        // setMicButtonState(false) will be called in onstop after transcribe
+      } else {
+        // Start recording
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          recordedChunks = [];
+          let options = {};
+          if (MediaRecorder.isTypeSupported("audio/webm")) {
+            options.mimeType = "audio/webm";
+          } else if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+            options.mimeType = "audio/webm;codecs=opus";
+          }
+
+          console.log("MediaRecorder options:", options);
+
+          mediaRecorder = new MediaRecorder(stream, options);
+
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+              recordedChunks.push(event.data);
+            }
+          };
+
+          mediaRecorder.onstop = async () => {
+            try {
+              const blob = new Blob(recordedChunks, { type: "audio/webm" });
+              await uploadAndTranscribe(blob);
+            } catch (e) {
+              console.error("Error handling recorded audio:", e);
+            } finally {
+              setMicButtonState(false);
+              // Stop all tracks so mic is released
+              stream.getTracks().forEach((t) => t.stop());
+            }
+          };
+
+          mediaRecorder.start();
+          setMicButtonState(true);
+        } catch (err) {
+          console.error("Error accessing microphone:", err);
+          setMicButtonState(false);
+        }
+      }
+    }
+
+    async function uploadAndTranscribe(blob) {
+      try {
+        console.log("Recorded blob size (bytes):", blob.size);
+        statusDiv.textContent = "Transcribing your speech...";
+        const formData = new FormData();
+        formData.append("file", blob, "speech.webm");
+
+        const response = await fetch(BASE_URL + "/transcribe", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error("Transcription request failed");
+        }
+
+        const data = await response.json();
+		console.log("Transcribe response:", data);
+        const text = (data.text || "").trim();
+
+        if (text) {
+          messageInput.value = text;
+          autoResizeInput();
+          messageInput.focus();
+        } else {
+          console.log("No transcription text received.");
+        }
+      } catch (err) {
+        console.error("Error during transcription:", err);
+      } finally {
+        statusDiv.textContent = "";
+      }
+    }
+
+
+    async function sendMessage() {
+      const text = messageInput.value.trim();
+      if (!text) return;
+
+      appendMessage("user", text);
+      history.push({ role: "user", content: text });
+      messageInput.value = "";
+	  autoResizeInput();
+      statusDiv.textContent = "Zelda is thinking...";
+
+      try {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: text,
+            history: history,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Network response was not ok");
+        }
+
+        const data = await response.json();
+        const reply = data.reply || "(No reply text)";
+        const audioUrl = data.audio_url || null;
+        const tone = data.tone || "neutral";
+
+        appendMessage("assistant", reply);
+        history.push({ role: "assistant", content: reply });
+
+        // Update glow + choose correct SadTalker clip
+        setAvatarTone(tone);
+        updateAvatarVideoForTone(tone);
+        // Store latest audio URL and AUTO-PLAY the new reply.
+        // Also stop any currently playing audio when a new reply arrives.
+        if (audioUrl) {
+          lastAudioUrl = BASE_URL + audioUrl;
+
+          // Stop existing audio if it's playing
+          if (currentAudio && !currentAudio.paused) {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+            currentAudio = null;
+          }
+
+          // Auto-play the new clip
+          try {
+            currentAudio = new Audio(lastAudioUrl);
+            setVoiceButtonState(true);
+            setSpeakingState(true);
+            startAvatarVideo();
+
+            currentAudio.onended = () => {
+              currentAudio = null;
+              setVoiceButtonState(false);
+              setSpeakingState(false);
+              stopAvatarVideo();
+            };
+            currentAudio.play().catch(err => {
+              console.error("Audio playback failed:", err);
+              setVoiceButtonState(false);
+              setSpeakingState(false);
+              stopAvatarVideo();
+            });
+          } catch (e) {
+            console.error("Error creating audio object:", e);
+            setVoiceButtonState(false);
+            setSpeakingState(false);
+            stopAvatarVideo();
+          }
+        } else {
+          lastAudioUrl = null;
+          setVoiceButtonState(false);
+          setSpeakingState(false);
+          stopAvatarVideo();
+        }
+      } catch (err) {
+        console.error(err);
+        appendMessage("assistant", "Oops, something went wrong talking to Zelda.");
+      } finally {
+        statusDiv.textContent = "";
+      }
+    }
+	
+	function playLastVoice() {
+     if (!lastAudioUrl) {
+       console.log("No voice clip available yet.");
+       return;
+     }
+     try {
+      // If something is already playing, stop it and reset (toggle off)
+      if (currentAudio && !currentAudio.paused) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+        currentAudio = null;
+        setVoiceButtonState(false);
+        setSpeakingState(false);
+        stopAvatarVideo();
+        return;
+      }
+
+      // Otherwise, start (or restart) playing the last clip
+      currentAudio = new Audio(lastAudioUrl);
+      setVoiceButtonState(true);
+      setSpeakingState(true);
+      startAvatarVideo();
+
+      currentAudio.onended = () => {
+        currentAudio = null;
+        setVoiceButtonState(false);
+        setSpeakingState(false);
+        stopAvatarVideo();
+      };
+      currentAudio.play().catch(err => {
+        console.error("Audio playback failed:", err);
+        setVoiceButtonState(false);
+        stopAvatarVideo();
+      });
+    } catch (e) {
+      console.error("Error controlling audio playback:", e);
+      setVoiceButtonState(false);
+      stopAvatarVideo();
+    }
+   }
+	
+  </script>
+</body>
+</html>
