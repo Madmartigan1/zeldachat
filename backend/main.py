@@ -4,6 +4,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional, Literal
 from pathlib import Path
+import asyncio
+import time
 from openai import OpenAI, RateLimitError
 from voice import synthesize_speech
 from transcribe import transcribe_file
@@ -127,3 +129,44 @@ async def transcribe_audio(file: UploadFile = File(...)):
         print("Transcription error:", e)
         return {"text": ""}
 
+#------------------------------------------------------------------------------
+# Background task: periodically delete old audio files for privacy
+# ------------------------------------------------------------------------------
+
+AUDIO_TTL_SECONDS = 5 * 60  # 5 minutes; adjust as desired
+
+
+async def cleanup_audio_loop() -> None:
+    """
+    Periodically delete audio files older than AUDIO_TTL_SECONDS
+    from the /audio directory located next to main.py.
+    """
+    audio_dir = Path(__file__).with_name("audio")
+    audio_dir.mkdir(exist_ok=True)
+
+    while True:
+        try:
+            now = time.time()
+            cutoff = now - AUDIO_TTL_SECONDS
+
+            for mp3_path in audio_dir.glob("*.mp3"):
+                try:
+                    mtime = mp3_path.stat().st_mtime
+                    if mtime < cutoff:
+                        print(f"[cleanup] Deleting old audio file: {mp3_path.name}")
+                        mp3_path.unlink()
+                except Exception as inner_err:
+                    print(f"[cleanup] Error deleting {mp3_path}: {inner_err}")
+        except Exception as outer_err:
+            print("[cleanup] Unexpected error during cleanup loop:", outer_err)
+
+        # Sleep before next cleanup sweep
+        await asyncio.sleep(60)
+
+
+@app.on_event("startup")
+async def start_cleanup_task() -> None:
+    """
+    Start the background cleanup loop when the FastAPI app starts.
+    """
+    asyncio.create_task(cleanup_audio_loop())
