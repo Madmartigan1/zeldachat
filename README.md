@@ -1,6 +1,6 @@
 # ZeldaChat 🧠
 
-A is a local, browser-based chat UI wired to a small FastAPI backend that talks to OpenAI.
+A local, browser-based chat UI wired to a small FastAPI backend that talks to OpenAI.
 
 It gives you:
 
@@ -113,4 +113,5 @@ Built with:
 
  
  
+
 
