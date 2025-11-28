@@ -1,5 +1,5 @@
 # ZeldaChat 🧠
-<p align="center">
+<p align="left">
   <img src="frontend/zelda.PNG" alt="Zelda avatar" width="180" />
 </p>
 
