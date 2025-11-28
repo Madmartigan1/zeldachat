@@ -1,4 +1,5 @@
 # ZeldaChat 🧠
+![ZeldaChat UI](frontend/zelda.PNG)
 
 A local, browser-based chat UI wired to a small FastAPI backend that talks to OpenAI.
 
@@ -49,16 +50,16 @@ The repo is intentionally minimal:
 
 ## ✨ Features
 
-- **Chat** with Zelda using the OpenAI API  
-- **Text → Speech** generation for Zelda’s voice  
-- **Audio → Text** transcription via Whisper  
-- **Tone-based video selection** using emotion keywords  
-- Fully local **HTML/JS frontend**  
-- **FastAPI backend** exposed on `http://localhost:8000`
+- 🗣️ **Conversational AI** using `gpt-4.1-mini`
+- 🔊 **Natural Text-to-Speech** via `gpt-4o-mini-tts`
+- 🎤 **Speech-to-Text** using Whisper
+- 🎭 **Emotion-based avatar reactions**
+- 🌐 Pure **local HTML/JS frontend**
+- ⚡ Lightweight **FastAPI** backend (`localhost:8000`)
 
 ---
 
-## Requirements
+## 🔧 Requirements
 
 - Python **3.11+** (3.10 will likely work, but 3.11 is recommended).
 - An OpenAI API key with access to:
@@ -114,6 +115,7 @@ Built with:
 
  
  
+
 
 
 
