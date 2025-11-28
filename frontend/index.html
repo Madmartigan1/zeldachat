@@ -276,6 +276,29 @@
     const avatarWrapper = document.getElementById("avatarWrapper");
     const avatarVideo = document.getElementById("avatarVideo");
 	
+	// If a specific tone's video fails to load (404, etc.), fall back to neutral.
+	if (avatarVideo) {
+		avatarVideo.addEventListener("error", () => {
+			console.warn("Avatar video failed to load. Falling back to neutral.");
+
+		const neutralClip = toneToVideo["neutral"];
+		if (!neutralClip) return;
+
+		const neutralSrc = VIDEO_BASE_URL + neutralClip;
+
+		// Avoid infinite loop if neutral is missing too
+		if (avatarVideo.getAttribute("data-src") === neutralSrc) {
+			return;
+		}
+
+		avatarVideo.src = neutralSrc;
+		avatarVideo.setAttribute("data-src", neutralSrc);
+		avatarVideo.play().catch(err => {
+			console.warn("Failed to play neutral fallback video:", err);
+		});
+	});
+}
+	
 	const MAX_INPUT_HEIGHT = 200; // px
 	
 	let isRecording = false;
