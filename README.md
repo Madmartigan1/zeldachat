@@ -1,5 +1,7 @@
 # ZeldaChat 🧠
-![ZeldaChat UI](frontend/zelda.PNG)
+<p align="center">
+  <img src="frontend/zelda.PNG" alt="Zelda avatar" width="180" />
+</p>
 
 A local, browser-based chat UI wired to a small FastAPI backend that talks to OpenAI.
 
