@@ -97,6 +97,7 @@ Open frontend/index.html with your browser (Chrome recommended)
 Pull requests welcome.
 This is an evolving personal project; improvements and ideas are appreciated.
 
+---
 
 ## ⭐ Acknowledgements
 
@@ -113,5 +114,6 @@ Built with:
 
  
  
+
 
 
