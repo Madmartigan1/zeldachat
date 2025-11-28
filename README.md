@@ -1,6 +1,7 @@
 # ZeldaChat 🧠
+![ZeldaChat UI](frontend/zelda.PNG)
 
-A is a local, browser-based chat UI wired to a small FastAPI backend that talks to OpenAI.
+A local, browser-based chat UI wired to a small FastAPI backend that talks to OpenAI.
 
 It gives you:
 
@@ -49,16 +50,16 @@ The repo is intentionally minimal:
 
 ## ✨ Features
 
-- **Chat** with Zelda using the OpenAI API  
-- **Text → Speech** generation for Zelda’s voice  
-- **Audio → Text** transcription via Whisper  
-- **Tone-based video selection** using emotion keywords  
-- Fully local **HTML/JS frontend**  
-- **FastAPI backend** exposed on `http://localhost:8000`
+- 🗣️ **Conversational AI** using `gpt-4.1-mini`
+- 🔊 **Natural Text-to-Speech** via `gpt-4o-mini-tts`
+- 🎤 **Speech-to-Text** using Whisper
+- 🎭 **Emotion-based avatar reactions**
+- 🌐 Pure **local HTML/JS frontend**
+- ⚡ Lightweight **FastAPI** backend (`localhost:8000`)
 
 ---
 
-## Requirements
+## 🔧 Requirements
 
 - Python **3.11+** (3.10 will likely work, but 3.11 is recommended).
 - An OpenAI API key with access to:
@@ -66,6 +67,8 @@ The repo is intentionally minimal:
   - `gpt-4o-mini-tts` (TTS)
   - `whisper-1` (STT)
 - A modern browser (Chrome, Edge, etc.) with microphone access.
+
+---
 
 ## 🚀 Quick Start
 
@@ -79,15 +82,31 @@ pip install -r requirements.txt
 
 Create a file in /backend named: zelda_key.env and copy/paste your OpenAI key inside
 
+
 ### 3. Load the backend
 
 ```
 cd backend
 uvicorn main:app --reload
+```
 
 ### 4. Start the frontend
 
 Open frontend/index.html with your browser (Chrome recommended)
 
+---
+
+## 🤝 Contributing 
+Pull requests welcome. This is an evolving personal project; improvements and ideas are appreciated. 
+
+--- 
+
+## ⭐ Acknowledgements 
+
+Built with: 
+- Python / FastAPI 
+- OpenAI APIs 
+- HTML / JavaScript 
+- Videos generated with SadTalker: https://github.com/OpenTalker/SadTalker
  
  
