@@ -76,7 +76,7 @@ The repo is intentionally minimal:
   - `gpt-4.1-mini` (chat)
   - `gpt-4o-mini-tts` (TTS)
   - `whisper-1` (STT)
-- A modern browser (Chrome, Edge, etc.) with microphone access.
+- A modern browser (Chrome, Brave, etc.) with microphone access.
 
 ---
 
@@ -120,6 +120,7 @@ Built with:
 - Videos generated with SadTalker: https://github.com/OpenTalker/SadTalker
  
  
+
 
 
 
