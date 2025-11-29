@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/License-MIT-green.svg" />
 </p>
 <p align="left">
-  <img src="frontend/zelda.PNG" alt="Zelda avatar" width="180" />
+  <img src="frontend/calm.png" alt="Zelda avatar" width="180" />
 </p>
 
 A local, browser-based chat UI wired to a small FastAPI backend that talks to OpenAI.
@@ -76,7 +76,7 @@ The repo is intentionally minimal:
   - `gpt-4.1-mini` (chat)
   - `gpt-4o-mini-tts` (TTS)
   - `whisper-1` (STT)
-- A modern browser (Chrome, Edge, etc.) with microphone access.
+- A modern browser (Chrome, Brave, etc.) with microphone access.
 
 ---
 
@@ -120,5 +120,8 @@ Built with:
 - Videos generated with SadTalker: https://github.com/OpenTalker/SadTalker
  
  
+
+
+
 
 
