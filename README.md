@@ -10,7 +10,6 @@
 <p align="left">
   <img src="frontend/calm.png" alt="Zelda avatar" width="200" />
 </p>
-
 A local, browser-based chat UI wired to a small FastAPI backend that talks to OpenAI.
 
 It gives you:
@@ -62,7 +61,7 @@ The repo is intentionally minimal:
 
 - 🗣️ **Conversational AI** using `gpt-4.1-mini`
 - 🔊 **Natural Text-to-Speech** via `gpt-4o-mini-tts`
-- 🎤 **Speech-to-Text** using Whisper
+- 🎤 **Speech-to-Text** using `gpt-4o-transcribe`
 - 🎭 **Emotion-based avatar reactions**
 - 🌐 Pure **local HTML/JS frontend**
 - ⚡ Lightweight **FastAPI** backend (`localhost:8000`)
@@ -120,6 +119,9 @@ Built with:
 - Videos generated with SadTalker: https://github.com/OpenTalker/SadTalker
  
  
+
+
+
 
 
 

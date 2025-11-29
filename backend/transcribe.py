@@ -31,7 +31,7 @@ def transcribe_file(file_obj) -> str:
         audio_file.name = "speech.webm"
 
         transcript = stt_client.audio.transcriptions.create(
-            model="whisper-1",
+            model="gpt-4o-transcribe",
             file=audio_file,
         )
         text = getattr(transcript, "text", "") or ""

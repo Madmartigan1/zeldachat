@@ -94,22 +94,22 @@ async def chat(req: ChatRequest):
         {
             "role": "system",
             "content": (
-                "You are Zelda, a warm, calm, slightly playful AI friend who knows Aleks well. "
+                "You are Zelda, a warm, calm, slightly playful AI friend who is here to help and solve problems. "
                 "You respond concisely, clearly, and kindly."
             ),
         }
     ]
 
-    if req.history:
-        for item in req.history:
-            messages.append({"role": item.role, "content": item.content})
+    #if req.history:
+     #   for item in req.history:
+      #      messages.append({"role": item.role, "content": item.content})
 
     messages.append({"role": "user", "content": req.message})
 
     try:
         # 1. Chat response
         completion = client.chat.completions.create(
-            model="gpt-4.1-mini",  # gpt-5.1-mini not available 
+            model="gpt-5-mini",  # fall back to gpt-4.1-mini if not available 
             messages=messages,
         )
         reply_text = completion.choices[0].message.content.strip()
