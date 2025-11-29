@@ -1,6 +1,6 @@
 # ZeldaChat 🧠
 <p align="left">
-  <img src="frontend/zelda.png" alt="Zelda avatar" width="180" />
+  <img src="frontend/sweet.png" alt="Zelda avatar" width="180" />
 </p>
 
 A local, browser-based chat UI wired to a small FastAPI backend that talks to OpenAI.
@@ -112,4 +112,5 @@ Built with:
 - Videos generated with SadTalker: https://github.com/OpenTalker/SadTalker
  
  
+
 
