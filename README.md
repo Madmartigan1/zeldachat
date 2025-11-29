@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/License-MIT-green.svg" />
 </p>
 <p align="left">
-  <img src="frontend/calm.png" alt="Zelda avatar" width="180" />
+  <img src="frontend/calm.png" alt="Zelda avatar" width="200" />
 </p>
 
 A local, browser-based chat UI wired to a small FastAPI backend that talks to OpenAI.
@@ -120,6 +120,7 @@ Built with:
 - Videos generated with SadTalker: https://github.com/OpenTalker/SadTalker
  
  
+
 
 
 
