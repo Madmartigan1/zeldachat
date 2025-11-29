@@ -121,6 +121,19 @@
     #avatarWrapper.tone-neutral {
       box-shadow: 0 0 8px rgba(0, 0, 0, 0.15);
     }
+	/* Mode selector styling */
+    #mode-selector {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #4a2f24;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: flex-start;
+    }
+    #mode-selector label {
+      cursor: pointer;
+    }
     #chatPanel {
       flex: 1;
       display: flex;
@@ -276,7 +289,13 @@
       </div>
 
       <div id="avatarName">Zelda</div>
-      <div id="avatarSubtitle">Your AI friend & co-pilot</div>
+      <div id="avatarSubtitle">Your AI friend & assistant</div>
+	  <!-- Zelda mode selector -->
+      <div id="mode-selector">
+        <label><input type="radio" name="mode" value="friendly" checked> Friendly</label>
+        <label><input type="radio" name="mode" value="therapist"> Therapist</label>
+        <label><input type="radio" name="mode" value="balanced"> Balanced</label>
+      </div>
     </div>
 
     <!-- Chat panel -->
@@ -615,6 +634,9 @@
   async function sendMessage() {
     const text = messageInput.value.trim();
     if (!text) return;
+	
+	const modeInput = document.querySelector('input[name="mode"]:checked');
+    const mode = modeInput ? modeInput.value : "friendly";
 
     appendMessage("user", text);
     history.push({ role: "user", content: text });
@@ -630,6 +652,7 @@
         },
         body: JSON.stringify({
           message: text,
+		  mode: mode,
           history: history,
         }),
       });
