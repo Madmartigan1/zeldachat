@@ -1,5 +1,5 @@
 # ZeldaChat 🧠
-<p align="center">
+<p align="left">
   <img src="https://img.shields.io/badge/Python-3.10+-blue.svg" />
   <img src="https://img.shields.io/badge/FastAPI-0.110+-009688.svg" />
   <img src="https://img.shields.io/badge/OpenAI-API-412991.svg" />
@@ -120,4 +120,5 @@ Built with:
 - Videos generated with SadTalker: https://github.com/OpenTalker/SadTalker
  
  
+
 
