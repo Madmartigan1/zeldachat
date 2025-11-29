@@ -8,9 +8,10 @@
   <img src="https://img.shields.io/badge/License-MIT-green.svg" />
 </p>
 <p align="center">
-  <img src="frontend/calm.png" alt="Zelda avatar" width="150"
-       style="border-radius: 50%; margin-right: 20px;" />
-  <img src="https://img.shields.io/badge/AI%20Avatar-Real--Time%20Voice%20&%20Video-blue?style=for-the-badge" />
+  <img src="frontend/calm.png"
+       alt="Zelda avatar"
+       width="210"
+       style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
 </p>
 
 A local, browser-based chat UI wired to a small FastAPI backend that talks to OpenAI.
@@ -122,6 +123,7 @@ Built with:
 - Videos generated with SadTalker: https://github.com/OpenTalker/SadTalker
  
  
+
 
 
 
