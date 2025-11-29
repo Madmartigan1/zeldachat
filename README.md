@@ -1,4 +1,12 @@
 # ZeldaChat 🧠
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10+-blue.svg" />
+  <img src="https://img.shields.io/badge/FastAPI-0.110+-009688.svg" />
+  <img src="https://img.shields.io/badge/OpenAI-API-412991.svg" />
+  <img src="https://img.shields.io/badge/Frontend-HTML%2FJS-orange.svg" />
+  <img src="https://img.shields.io/badge/Status-Experimental-yellow.svg" />
+  <img src="https://img.shields.io/badge/License-MIT-green.svg" />
+</p>
 <p align="left">
   <img src="frontend/zelda.PNG" alt="Zelda avatar" width="180" />
 </p>
@@ -112,3 +120,4 @@ Built with:
 - Videos generated with SadTalker: https://github.com/OpenTalker/SadTalker
  
  
+
