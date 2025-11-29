@@ -65,6 +65,7 @@ class HistoryItem(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
+    mode: Optional[str] = "friendly"
     history: Optional[List[HistoryItem]] = None
 
 class ChatResponse(BaseModel):
@@ -90,19 +91,45 @@ async def chat(req: ChatRequest):
     - Generates speech audio via voice.synthesize_speech()
     - Returns reply text + audio URL
     """
+
+    # Choose Zelda's personality mode from the request
+    mode = (req.mode or "friendly").lower()
+
+    if mode == "therapist":
+        system_prompt = (
+            "You are Zelda in Therapist Mode. You communicate like a licensed professional therapist: "
+            "calm, empathetic, emotionally aware, and validating. "
+            "You respond in 3–12 reflective sentences, helping the user feel understood and safe. "
+            "Avoid clinical jargon (unless asked) and stay warm and human."
+        )
+    elif mode == "balanced":
+        system_prompt = (
+            "You are Zelda in Balanced Mode. You are a supportive friend with the emotional insight of a trained therapist. "
+            "Respond briefly (1–4 short sentences) with warmth, clarity, and grounded emotional awareness. "
+            "Be kind and understanding without being long-winded."
+        )
+    else:
+        # Default to Friendly mode
+        system_prompt = (
+            "You are Zelda in Friendly Mode. You are warm, calm, light-hearted, supportive, playful, and kind. "
+            "You respond in 1–3 short sentences and focus on making the user feel comfortable and understood. "
+            "Avoid deep therapeutic analysis unless the user clearly asks for it."
+        )
+
     messages = [
         {
             "role": "system",
-            "content": (
-                "You are Zelda, a warm, calm, slightly playful AI friend who is here to help and solve problems. "
-                "You respond concisely, clearly, and kindly."
-            ),
+            "content": system_prompt,
         }
     ]
 
-    #if req.history:
-     #   for item in req.history:
-      #      messages.append({"role": item.role, "content": item.content})
+    # History is deliberately not replayed to keep Zelda stateless per message.
+    # If you ever want to reintroduce context, you can safely re-enable this block:
+    if req.history:
+        for item in req.history:
+            messages.append({"role": item.role, "content": item.content})
+
+
 
     messages.append({"role": "user", "content": req.message})
 
@@ -111,6 +138,8 @@ async def chat(req: ChatRequest):
         completion = client.chat.completions.create(
             model="gpt-5-mini",  # fall back to gpt-4.1-mini if not available 
             messages=messages,
+            #max_tokens=120,
+            #temperature=0.2,
         )
         reply_text = completion.choices[0].message.content.strip()
         tone = detect_tone(reply_text)
