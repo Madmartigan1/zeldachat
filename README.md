@@ -106,7 +106,7 @@ Open frontend/index.html with your browser (Chrome recommended)
 ---
 
 ## 🤝 Contributing 
-Pull requests welcome. This is an evolving personal project; improvements and ideas are appreciated. 
+Pull requests welcome. This is an evolving project; improvements and ideas are appreciated. 
 
 --- 
 
@@ -119,6 +119,7 @@ Built with:
 - Videos generated with SadTalker: https://github.com/OpenTalker/SadTalker
  
  
+
 
 
 
