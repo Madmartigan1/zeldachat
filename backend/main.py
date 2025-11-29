@@ -1,6 +1,7 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import List, Optional, Literal
 from pathlib import Path
@@ -38,10 +39,16 @@ AUDIO_DIR.mkdir(exist_ok=True)
 # --- Static video clips for Zelda avatar ---
 BASE_DIR = Path(__file__).resolve().parent
 VIDEO_DIR = BASE_DIR / "video"
+VIDEO_DIR.mkdir(exist_ok=True)
+
+#--- Frontend directory (sibling to backend/) ---
+# Project root
+FRONTEND_DIR = BASE_DIR.parent / "frontend"
 
 app = FastAPI()
 app.mount("/audio", StaticFiles(directory=str(AUDIO_DIR)), name="audio")
 app.mount("/video", StaticFiles(directory=str(VIDEO_DIR)), name="video")
+app.mount("/frontend", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend",)
 
 # Allow frontend (e.g. index.html opened from file:// or localhost)
 app.add_middleware(
@@ -64,6 +71,15 @@ class ChatResponse(BaseModel):
     reply: str
     audio_url: Optional[str] = None
     tone: Optional[str] = None
+    
+@app.get("/")
+async def serve_frontend_index():
+    """
+    Serve the main Zelda frontend page at the root URL.
+    """
+    index_path = FRONTEND_DIR / "index.html"
+    return FileResponse(index_path)
+    
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
@@ -170,3 +186,8 @@ async def start_cleanup_task() -> None:
     Start the background cleanup loop when the FastAPI app starts.
     """
     asyncio.create_task(cleanup_audio_loop())
+    
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    # Serve the Zelda PNG as the favicon
+    return FileResponse(FRONTEND_DIR / "zelda.PNG")
