@@ -14,7 +14,7 @@ A local, browser-based chat UI wired to a small FastAPI backend that talks to Op
 
 It gives you:
 
-- A friendly “Zelda” persona using `gpt-4.1-mini` for chat.
+- A friendly persona using `gpt-4.1-mini` for chat.
 - Natural-sounding TTS using `gpt-4o-mini-tts` (voice: `nova`) with prosody shaping so it feels more alive.
 - Whisper-based speech-to-text so you can talk to Zelda via microphone instead of just typing.
 - A simple avatar front-end (PNG + SadTalker MP4 clips) that reacts in sync with the audio (as best as pre-rendered video allows).
@@ -59,12 +59,13 @@ The repo is intentionally minimal:
 
 ## ✨ Features
 
-- 🗣️ **Conversational AI** using `gpt-4.1-mini`
+- 🗣️ **Conversational AI** using `gpt-5-mini`
 - 🔊 **Natural Text-to-Speech** via `gpt-4o-mini-tts`
 - 🎤 **Speech-to-Text** using `gpt-4o-transcribe`
 - 🎭 **Emotion-based avatar reactions**
-- 🌐 Pure **local HTML/JS frontend**
+- 🌐 Pure **local HTML/JS frontend** with optional web setup
 - ⚡ Lightweight **FastAPI** backend (`localhost:8000`)
+- 🧩 **Three Personality Modes** (Friendly, Therapist, Balanced)
 
 ---
 
@@ -118,14 +119,5 @@ Built with:
 - HTML / JavaScript 
 - Videos generated with SadTalker: https://github.com/OpenTalker/SadTalker
  
- 
-
-
-
-
-
-
-
-
 
 
