@@ -340,6 +340,11 @@
   }
   const API_URL = BASE_URL + "/chat";
   const VIDEO_BASE_URL = BASE_URL + "/video/";
+  
+  // Rough mobile detection for autoplay handling
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(
+    (navigator.userAgent || "").toString()
+  );
 
   // Map backend tone → SadTalker clip
   const toneToVideo = {
@@ -618,16 +623,36 @@
       const text = (data.text || "").trim();
 
       if (text) {
+        // Put the transcribed text into the input
         messageInput.value = text;
         autoResizeInput();
-        messageInput.focus();
+
+        if (isMobile) {
+          // On mobile: let the user review and tap Send (clear user gesture).
+          statusDiv.textContent = "Review and tap Send to talk to Zelda.";
+          messageInput.focus();
+        } else {
+          // On desktop: keep one-shot behavior (transcribe + send).
+          statusDiv.textContent = "Sending your message to Zelda...";
+          await sendMessage();
+        }
       } else {
         console.log("No transcription text received.");
+        statusDiv.textContent = "I couldn't hear anything clearly. Try again?";
       }
     } catch (err) {
       console.error("Error during transcription:", err);
+      statusDiv.textContent = "Something went wrong during transcription.";
     } finally {
-      statusDiv.textContent = "";
+      // Clear transient statuses after a bit
+      setTimeout(() => {
+        if (
+          statusDiv.textContent.includes("Transcribing") ||
+          statusDiv.textContent.includes("Sending")
+        ) {
+          statusDiv.textContent = "";
+        }
+      }, 1200);
     }
   }
 
