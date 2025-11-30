@@ -13,5 +13,5 @@ This project powers a talking-avatar chat experience using a prerecorded video a
    git clone https://github.com/<your-username>/zeldachat.git
    cd zeldachat
 
-3. git checkout -b feature/improvement
-4. git push origin feature/improvement
+3. ``` git checkout -b feature/improvement ```
+5. ``` git push origin feature/improvement ```
