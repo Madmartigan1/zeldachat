@@ -14,7 +14,7 @@ A local, browser-based chat UI wired to a small FastAPI backend that talks to Op
 
 It gives you:
 
-- A friendly “Zelda” persona using `gpt-4.1-mini` for chat.
+- A friendly persona using `gpt-4.1-mini` for chat.
 - Natural-sounding TTS using `gpt-4o-mini-tts` (voice: `nova`) with prosody shaping so it feels more alive.
 - Whisper-based speech-to-text so you can talk to Zelda via microphone instead of just typing.
 - A simple avatar front-end (PNG + SadTalker MP4 clips) that reacts in sync with the audio (as best as pre-rendered video allows).
