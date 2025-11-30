@@ -59,12 +59,13 @@ The repo is intentionally minimal:
 
 ## ✨ Features
 
-- 🗣️ **Conversational AI** using `gpt-4.1-mini`
+- 🗣️ **Conversational AI** using `gpt-5-mini`
 - 🔊 **Natural Text-to-Speech** via `gpt-4o-mini-tts`
 - 🎤 **Speech-to-Text** using `gpt-4o-transcribe`
 - 🎭 **Emotion-based avatar reactions**
-- 🌐 Pure **local HTML/JS frontend**
+- 🌐 Pure **local HTML/JS frontend** with optional web setup
 - ⚡ Lightweight **FastAPI** backend (`localhost:8000`)
+- 🧩 **Three Personality Modes** (Friendly, Therapist, Balanced)
 
 ---
 
@@ -118,14 +119,6 @@ Built with:
 - HTML / JavaScript 
 - Videos generated with SadTalker: https://github.com/OpenTalker/SadTalker
  
- 
-
-
-
-
-
-
-
 
 
 
