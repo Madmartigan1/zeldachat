@@ -279,16 +279,16 @@ async def chat(req: ChatRequest):
             f"reply_len={len(reply_text)}, raw_content={repr(raw_content)}"
         )
         
-        # If we got nothing back, try a simpler backup call
+                # If we got nothing back, try a simpler backup call
         if not reply_text:
             print("[Zelda DEBUG] Empty primary reply_text, retrying with simplified prompt...")
 
-            # Very simple backup prompt, no history, just the latest message
+            # Simple backup prompt – but still with recent context so memory feels consistent
             if mode == "therapist":
                 backup_system = (
                     "You are Zelda, a kind, grounded listener. "
                     "The user just shared something with you. "
-                    "Reply in a warm, concise way in 4-8 sentences."
+                    "Reply in a warm, concise way in about 4–8 short sentences."
                 )
             elif mode == "balanced":
                 backup_system = (
@@ -301,9 +301,26 @@ async def chat(req: ChatRequest):
                     "Reply in 1–3 sentences, casual and kind."
                 )
 
+            # Build a short transcript of the last few turns so the backup
+            # still “remembers” what you were talking about.
+            if req.history:
+                recent = req.history[-12:]  # last 6 turns (you can tweak this)
+                convo_lines = []
+                for item in recent:
+                    speaker = "User" if item.role == "user" else "Zelda"
+                    convo_lines.append(f"{speaker}: {item.content}")
+                recent_context = (
+                    "Here is the recent conversation between the user and Zelda:\n"
+                    + "\n".join(convo_lines)
+                    + "\n\nNow the user says:\n"
+                    + req.message
+                )
+            else:
+                recent_context = req.message
+
             backup_messages = [
                 {"role": "system", "content": backup_system},
-                {"role": "user", "content": req.message},
+                {"role": "user", "content": recent_context},
             ]
 
             backup_completion = client.chat.completions.create(
@@ -321,12 +338,7 @@ async def chat(req: ChatRequest):
                 f"[Zelda DEBUG] backup mode={mode}, finish_reason={backup_finish_reason}, "
                 f"reply_len={len(reply_text)}"
             )
-            
-        if not reply_text:
-            reply_text = (
-                "I read what you shared, but something went wrong forming my reply. "
-                "Could you summarize the main thing on your mind in 2–3 sentences and send it again?"
-            )
+
 
         tone = detect_tone(reply_text)
 
