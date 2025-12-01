@@ -437,12 +437,33 @@
       avatarVideo.setAttribute("data-src", src);
     }
   }
-
+  
   function startAvatarVideo() {
     if (!avatarWrapper || !avatarVideo) return;
 
     const beginPlayback = () => {
       avatarWrapper.classList.add("playing"); // hide PNG / show video
+
+      // 🔹 Mobile-only: when Zelda starts talking, scroll her into view
+      if (isMobile) {
+        setTimeout(() => {
+          try {
+            const rect = avatarWrapper.getBoundingClientRect();
+            const targetY = rect.top + window.scrollY - 16; // small padding
+            window.scrollTo({
+              top: targetY,
+              behavior: "smooth",
+            });
+          } catch (e) {
+            console.warn("Scroll to avatar failed:", e);
+            avatarWrapper.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          }
+        }, 80); // tiny delay so layout is stable
+      }
+
       try {
         avatarVideo.currentTime = 0;
         avatarVideo.play().catch(err => {
@@ -721,19 +742,47 @@
             setVoiceButtonState(false);
             setSpeakingState(false);
             stopAvatarVideo();
+
+            // 🔹 Mobile-only: after she finishes talking, scroll back to the input
+            if (isMobile && messageInput) {
+              messageInput.scrollIntoView({
+                behavior: "smooth",
+                block: "end"
+              });
+              // Optional: put the cursor there
+              messageInput.focus();
+            }
           };
+
           currentAudio.play().catch(err => {
             console.error("Audio playback failed:", err);
             setVoiceButtonState(false);
             setSpeakingState(false);
             stopAvatarVideo();
+
+            if (isMobile && messageInput) {
+              messageInput.scrollIntoView({
+                behavior: "smooth",
+                block: "end"
+              });
+              messageInput.focus();
+            }
           });
         } catch (e) {
           console.error("Error creating audio object:", e);
           setVoiceButtonState(false);
           setSpeakingState(false);
           stopAvatarVideo();
+
+          if (isMobile && messageInput) {
+            messageInput.scrollIntoView({
+              behavior: "smooth",
+              block: "end"
+            });
+            messageInput.focus();
+          }
         }
+		
       } else {
         lastAudioUrl = null;
         setVoiceButtonState(false);
@@ -777,12 +826,30 @@
         setVoiceButtonState(false);
         setSpeakingState(false);
         stopAvatarVideo();
+
+        if (isMobile && messageInput) {
+          messageInput.scrollIntoView({
+            behavior: "smooth",
+            block: "end"
+          });
+          messageInput.focus();
+        }
       };
+
       currentAudio.play().catch(err => {
         console.error("Audio playback failed:", err);
         setVoiceButtonState(false);
         stopAvatarVideo();
+
+        if (isMobile && messageInput) {
+          messageInput.scrollIntoView({
+            behavior: "smooth",
+            block: "end"
+          });
+          messageInput.focus();
+        }
       });
+
     } catch (e) {
       console.error("Error controlling audio playback:", e);
       setVoiceButtonState(false);
