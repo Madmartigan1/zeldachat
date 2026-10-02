@@ -304,7 +304,7 @@ async def chat(req: ChatRequest):
             # Build a short transcript of the last few turns so the backup
             # still “remembers” what you were talking about.
             if req.history:
-                recent = req.history[-12:]  # last 6 turns (you can tweak this)
+                recent = req.history[-14:]  # last 7 turns (you can tweak this)
                 convo_lines = []
                 for item in recent:
                     speaker = "User" if item.role == "user" else "Zelda"
