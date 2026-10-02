@@ -81,10 +81,10 @@ class ChatResponse(BaseModel):
 @app.get("/")
 async def serve_frontend_index():
     """
-    Serve the main Zelda frontend page at the root URL.
+    Redirect the root URL to the frontend mount, so relative asset paths
+    in index.html (e.g. zelda.png) resolve under /frontend/.
     """
-    index_path = FRONTEND_DIR / "index.html"
-    return FileResponse(index_path)
+    return RedirectResponse(url="/frontend/")
     
 def summarize_history_for_model(history_items: List[HistoryItem]) -> str:
     """
@@ -422,4 +422,4 @@ async def start_cleanup_task() -> None:
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     # Serve the Zelda PNG as the favicon
-    return FileResponse(FRONTEND_DIR / "zelda.PNG")
+    return FileResponse(FRONTEND_DIR / "zelda.png")
