@@ -1,0 +1,19 @@
+From the backend directory run:
+
+uvicorn main:app --host 0.0.0.0 --port 9877
+
+
+Once it starts, run this on another terminal window:
+
+ngrok http 9877
+
+
+
+
+
+
+If you just want local access by opening /frontend/index.html then all you need is to run
+
+uvicorn main:app --reload
+
+from the backend directory
