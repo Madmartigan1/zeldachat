@@ -20,7 +20,7 @@ uvicorn main:app --reload                # local dev on :8000
 uvicorn main:app --host 0.0.0.0 --port 9877   # for remote access, then: ngrok http 9877
 ```
 
-The frontend is served by the backend at `/` (and `/frontend/`), or can be opened directly as `file://.../frontend/index.html`. In the `file://` case it hard-codes `http://127.0.0.1:8000` as the API base; otherwise it uses `window.location.origin`.
+The frontend is served by the backend at `/frontend/` (`/` redirects there so relative asset paths in `index.html` resolve), or can be opened directly as `file://.../frontend/index.html`. In the `file://` case it hard-codes `http://127.0.0.1:8000` as the API base; otherwise it uses `window.location.origin`.
 
 There is no test suite, linter, or build step.
 

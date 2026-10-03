@@ -29,9 +29,9 @@ AUDIO_DIR = BASE_DIR / "audio"
 AUDIO_DIR.mkdir(exist_ok=True)
 
 
-def synthesize_speech(text: str) -> str | None:
+def synthesize_speech(text: str, tone: str | None = None) -> str | None:
     """
-    Generate speech audio for the given text.
+    Generate speech audio for the given text, shaped for `tone` if given.
 
     Returns:
         A relative URL like "/audio/xxxx.mp3" on success,
@@ -39,7 +39,7 @@ def synthesize_speech(text: str) -> str | None:
     """
     try:
         # Shape the text for more emotional, natural TTS delivery
-        tts_text = format_for_tts(text)
+        tts_text = format_for_tts(text, tone)
         audio_filename = f"{uuid4().hex}.mp3"
         audio_path = AUDIO_DIR / audio_filename
 

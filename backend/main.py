@@ -10,12 +10,46 @@ import time
 from openai import OpenAI, RateLimitError
 from voice import synthesize_speech
 from transcribe import transcribe_file
-from prosody import detect_tone
+from prosody import detect_tone, split_tone_tag, TONE_DESCRIPTIONS
 
-# ---- Conversation windowing / summarization settings ----
-MAX_TURNS_FOR_MODEL = 12  # how many recent messages (user+assistant) to send verbatim
-SUMMARY_TURN_THRESHOLD = 20  # only bother summarizing if history is this long or more
+# ---- Conversation windowing / summarization settings (per mode) ----
+# recent:            how many recent messages (user+assistant) to send verbatim
+# summary_threshold: only summarize older messages once history is this long
+# summary_words:     length budget for that summary
+# Therapist remembers the most: the user's story builds up over a session.
+MEMORY_BY_MODE = {
+    "friendly":  {"recent": 12, "summary_threshold": 20, "summary_words": 120},
+    "balanced":  {"recent": 16, "summary_threshold": 24, "summary_words": 160},
+    "therapist": {"recent": 30, "summary_threshold": 40, "summary_words": 300},
+}
 SUMMARY_MAX_CHARS_FALLBACK = 1000  # fallback length if summarization fails
+
+# Appended to every mode's system prompt: Zelda picks the avatar emotion herself
+# (drives the video clip and TTS shaping), and replies in plain text because the
+# UI shows it raw and TTS reads it aloud.
+TONE_AND_FORMAT_INSTRUCTIONS = (
+    "\n\nOUTPUT FORMAT (always follow):\n"
+    "- The FIRST line of every reply is only a tag naming the emotion your face should show, "
+    "in square brackets, e.g. [sympathetic]. Then your reply starts on the next line.\n"
+    "- Choose exactly one of these tags:\n"
+    + "\n".join(f"  [{tone}] - {desc}" for tone, desc in TONE_DESCRIPTIONS.items())
+    + "\n- Write plain text only: no markdown, no asterisks, no bold or italics, no headings. "
+    "Numbered points like '1.' are fine.\n"
+)
+
+
+def resolve_tone(raw_reply: str, label: str) -> tuple[str, str]:
+    """
+    Split the model's leading tone tag off its reply. Falls back to keyword
+    detection when no valid tag is present. Returns (reply_text, tone).
+    """
+    tone, reply_text = split_tone_tag((raw_reply or "").strip())
+    if tone:
+        print(f"[Zelda TONE] {label}: tag -> {tone}")
+    else:
+        tone = detect_tone(reply_text)
+        print(f"[Zelda TONE] {label}: no valid tag, keyword fallback -> {tone}")
+    return reply_text, tone
 
 def load_api_key() -> str:
     """
@@ -81,12 +115,12 @@ class ChatResponse(BaseModel):
 @app.get("/")
 async def serve_frontend_index():
     """
-    Serve the main Zelda frontend page at the root URL.
+    Redirect the root URL to the frontend mount, so relative asset paths
+    in index.html (e.g. zelda.png) resolve under /frontend/.
     """
-    index_path = FRONTEND_DIR / "index.html"
-    return FileResponse(index_path)
+    return RedirectResponse(url="/frontend/")
     
-def summarize_history_for_model(history_items: List[HistoryItem]) -> str:
+def summarize_history_for_model(history_items: List[HistoryItem], max_words: int = 120) -> str:
     """
     Summarize older parts of the conversation into a compact form to save tokens,
     similar to how ChatGPT truncates/summarizes long chats.
@@ -110,7 +144,9 @@ def summarize_history_for_model(history_items: List[HistoryItem]) -> str:
                     "content": (
                         "You are a concise summarizer of a conversation between a user and an AI companion "
                         "named Zelda. Summarize the key facts, themes, and emotional dynamics so far in "
-                        "no more than 120 words. Do NOT give advice or continue the conversation. Just summarize."
+                        f"no more than {max_words} words. Keep specifics the user shared (people, events, "
+                        "goals, what has or hasn't helped). Do NOT give advice or continue the conversation. "
+                        "Just summarize."
                     ),
                 },
                 {
@@ -118,7 +154,7 @@ def summarize_history_for_model(history_items: List[HistoryItem]) -> str:
                     "content": convo_text,
                 },
             ],
-            max_completion_tokens=180,
+            max_completion_tokens=max_words * 2,
         )
         summary = (completion.choices[0].message.content or "").strip()
         return summary or convo_text[:SUMMARY_MAX_CHARS_FALLBACK]
@@ -132,6 +168,7 @@ def build_messages_with_window_and_summary(
     system_prompt: str,
     history: Optional[List[HistoryItem]],
     latest_user_message: str,
+    memory: dict = MEMORY_BY_MODE["friendly"],
 ) -> List[dict]:
     """
     Build the messages list for the chat model:
@@ -139,7 +176,9 @@ def build_messages_with_window_and_summary(
     - (optional) summary of older history
     - recent turns verbatim
     - latest user message
+    `memory` is one of the MEMORY_BY_MODE entries.
     """
+    recent_count = memory["recent"]
 
     messages: List[dict] = [{"role": "system", "content": system_prompt}]
     history = history or []
@@ -150,17 +189,17 @@ def build_messages_with_window_and_summary(
         return messages
 
     # If history is short, we can send it all
-    if len(history) <= MAX_TURNS_FOR_MODEL:
+    if len(history) <= recent_count:
         for item in history:
             messages.append({"role": item.role, "content": item.content})
     else:
         # Split into older vs recent
-        older = history[:-MAX_TURNS_FOR_MODEL]
-        recent = history[-MAX_TURNS_FOR_MODEL:]
+        older = history[:-recent_count]
+        recent = history[-recent_count:]
 
-        if len(history) >= SUMMARY_TURN_THRESHOLD:
+        if len(history) >= memory["summary_threshold"]:
             # Summarize the older portion into a compact system-style note
-            summary_text = summarize_history_for_model(older)
+            summary_text = summarize_history_for_model(older, memory["summary_words"])
             messages.append(
                 {
                     "role": "system",
@@ -192,6 +231,7 @@ async def chat(req: ChatRequest):
     """
 
     mode = (req.mode or "friendly").lower()
+    memory = MEMORY_BY_MODE.get(mode, MEMORY_BY_MODE["friendly"])
 
     if mode == "therapist":
         system_prompt = (
@@ -204,14 +244,17 @@ async def chat(req: ChatRequest):
             "WHAT TO DO:\n"
             "1. Reflect and validate how the user seems to feel so they feel understood.\n"
             "2. Offer 1–3 short, clear insights about what might be happening emotionally.\n"
-            "3. When appropriate, suggest 1–2 small, realistic next steps or coping ideas.\n\n"
+            "3. When appropriate, suggest 1–2 small, realistic next steps or coping ideas.\n"
+            "4. Validate first, then be honest and direct. Caring sometimes means tough love: "
+            "gently but clearly name avoidance, excuses, or unhelpful patterns instead of only soothing.\n\n"
             "WHAT TO AVOID:\n"
             "- Long, rambling essays.\n"
             "- Clinical or robotic language.\n"
             "- Minimizing or dismissing the user's feelings.\n"
             "- Claiming to be a doctor or licensed therapist.\n\n"
             "IMPORTANT:\n"
-            "- Never return an empty or blank response. Always respond with at least one sentence."
+            "- Never return an empty or blank response. Always respond with at least one sentence.\n"
+            "- Stay within about 4–8 short sentences, even when the topic is big."
         )
     elif mode == "balanced":
         system_prompt = (
@@ -225,11 +268,14 @@ async def chat(req: ChatRequest):
             "WHAT TO DO:\n"
             "1. Briefly reflect how the user seems to feel so they feel understood.\n"
             "2. Offer one or two clear insights about what might be going on emotionally or psychologically.\n"
-            "3. If it fits, end with one gentle, practical suggestion or encouragement.\n\n"
+            "3. If it fits, end with one gentle, practical suggestion or encouragement.\n"
+            "4. Validate first, then be honest. Like a good friend, don't just tell them what they want to hear; "
+            "if they're making excuses or stuck in a pattern, say so kindly but plainly.\n\n"
             "WHAT TO AVOID:\n"
             "- Do not write long, detailed analyses (leave that to Therapist Mode).\n"
             "- Do not be clinical or overly serious if the user is just chatting.\n"
             "- Do not ignore their feelings or jump straight to advice without some validation first.\n"
+            "- Do not go over 6 sentences.\n"
         )
     else:
         # Friendly mode
@@ -254,9 +300,10 @@ async def chat(req: ChatRequest):
     # - older turns summarized (if long)
     # - recent turns sent verbatim
     messages = build_messages_with_window_and_summary(
-        system_prompt=system_prompt,
+        system_prompt=system_prompt + TONE_AND_FORMAT_INSTRUCTIONS,
         history=req.history,
         latest_user_message=req.message,
+        memory=memory,
     )
 
 
@@ -271,7 +318,7 @@ async def chat(req: ChatRequest):
         choice = completion.choices[0]
         finish_reason = getattr(choice, "finish_reason", None)
         raw_content = choice.message.content
-        reply_text = (raw_content or "").strip()
+        reply_text, tone = resolve_tone(raw_content, "primary")
 
         # Debug: see what finish_reason is when things go weird
         print(
@@ -304,7 +351,7 @@ async def chat(req: ChatRequest):
             # Build a short transcript of the last few turns so the backup
             # still “remembers” what you were talking about.
             if req.history:
-                recent = req.history[-14:]  # last 7 turns (you can tweak this)
+                recent = req.history[-memory["recent"]:]
                 convo_lines = []
                 for item in recent:
                     speaker = "User" if item.role == "user" else "Zelda"
@@ -319,7 +366,7 @@ async def chat(req: ChatRequest):
                 recent_context = req.message
 
             backup_messages = [
-                {"role": "system", "content": backup_system},
+                {"role": "system", "content": backup_system + TONE_AND_FORMAT_INSTRUCTIONS},
                 {"role": "user", "content": recent_context},
             ]
 
@@ -332,15 +379,12 @@ async def chat(req: ChatRequest):
             backup_choice = backup_completion.choices[0]
             backup_finish_reason = getattr(backup_choice, "finish_reason", None)
             backup_raw = backup_choice.message.content
-            reply_text = (backup_raw or "").strip()
+            reply_text, tone = resolve_tone(backup_raw, "backup")
 
             print(
                 f"[Zelda DEBUG] backup mode={mode}, finish_reason={backup_finish_reason}, "
                 f"reply_len={len(reply_text)}"
             )
-
-
-        tone = detect_tone(reply_text)
 
     except RateLimitError:
         reply_text = (
@@ -356,7 +400,7 @@ async def chat(req: ChatRequest):
         return ChatResponse(reply=reply_text, audio_url=None, tone=tone)
 
     # Generate audio for the reply
-    audio_url = synthesize_speech(reply_text)
+    audio_url = synthesize_speech(reply_text, tone)
 
     return ChatResponse(reply=reply_text, audio_url=audio_url, tone=tone)
 
@@ -422,4 +466,4 @@ async def start_cleanup_task() -> None:
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     # Serve the Zelda PNG as the favicon
-    return FileResponse(FRONTEND_DIR / "zelda.PNG")
+    return FileResponse(FRONTEND_DIR / "zelda.png")

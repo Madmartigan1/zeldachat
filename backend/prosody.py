@@ -20,6 +20,51 @@ TONE_PLAYFUL      = "playful"
 TONE_INTRIGUED    = "intrigued"
 TONE_CAUTION      = "caution"
 
+# One-line meaning per tone, used to tell the chat model which tags it may pick.
+# Keys must match the frontend's toneToVideo map and backend/video/zelda_<tone>.mp4.
+TONE_DESCRIPTIONS = {
+    TONE_NEUTRAL:     "calm, matter-of-fact",
+    TONE_HAPPY:       "glad, warm, pleased for the user",
+    TONE_EXCITED:     "high-energy, thrilled",
+    TONE_PLAYFUL:     "teasing, joking, light",
+    TONE_INTRIGUED:   "curious, interested, thinking it over",
+    TONE_ENCOURAGING: "motivating, cheering the user on, firm but supportive",
+    TONE_REASSURING:  "soothing, calming worries",
+    TONE_SYMPATHETIC: "validating pain, gentle compassion",
+    TONE_BUMMED:      "disappointed or sad on the user's behalf",
+    TONE_CAUTION:     "warning, serious, being straight about a risk or a hard truth",
+}
+TONES = set(TONE_DESCRIPTIONS)
+
+# A bracketed tag at the very start, e.g. "[happy]", "**[Happy]**", "[tone: happy]",
+# optionally followed by the reply on the same line.
+_TONE_BRACKET_RE = re.compile(r"^[\s*_`]*\[\s*(?:tone\s*:\s*)?([a-z]+)\s*\][*_`]*[ \t]*", re.IGNORECASE)
+# A first line that is only "Tone: happy" or "happy".
+_TONE_LINE_RE = re.compile(r"^[\s*_`]*(?:tone\s*:\s*)?([a-z]+)[\s*_`]*$", re.IGNORECASE)
+
+
+def split_tone_tag(text: str) -> tuple[str | None, str]:
+    """
+    If the model's reply starts with a valid tone tag, return
+    (tone, text_without_tag). Otherwise return (None, text) unchanged.
+    """
+    if not text:
+        return None, text
+    stripped = text.lstrip()
+
+    m = _TONE_BRACKET_RE.match(stripped)
+    if m:
+        # Drop the tag even if the tone is unknown, so it never reaches the UI.
+        tone = m.group(1).lower()
+        return (tone if tone in TONES else None), stripped[m.end():].strip()
+
+    first, _, rest = stripped.partition("\n")
+    m = _TONE_LINE_RE.match(first)
+    if m and m.group(1).lower() in TONES:
+        return m.group(1).lower(), rest.strip()
+
+    return None, text
+
 
 def detect_tone(text: str) -> str:
     """
@@ -177,8 +222,9 @@ def _soften_existing_name(sentences: list[str], tone: str) -> list[str]:
     for idx, s in enumerate(sentences):
         # Only soften the first sentence; later ones can stay as-is
         if idx == 0:
-            # Match the user's name
-            m = re.match(r"^([A-Z][a-z]{1,20})([, ]+)(.*)$", s)
+            # Match the user's name; require a comma ("Alex, ...") so ordinary
+            # first words like "That sounds..." are not treated as names
+            m = re.match(r"^([A-Z][a-z]{1,20})(,\s*)(.*)$", s)
             if m:
                 name, sep, rest = m.groups()
                 rest = rest.lstrip()
@@ -191,7 +237,35 @@ def _soften_existing_name(sentences: list[str], tone: str) -> list[str]:
     return softened
 
 
-def format_for_tts(text: str) -> str:
+def _trail_off(s: str) -> str:
+    """End a sentence with a soft "..." instead of its period. Questions and
+    exclamations keep their punctuation."""
+    if s.endswith(("...", "…", "?", "!")):
+        return s
+    return s.rstrip(".") + "..."
+
+
+# Emoji and pictograph blocks only, so curly quotes (’) and ellipses (…) survive.
+_EMOJI_RE = re.compile(
+    "[\U0001F000-\U0001FAFF☀-➿⬀-⯿️‍]+"
+)
+
+
+def _clean_for_speech(text: str) -> str:
+    """
+    Remove markdown and emoji that TTS would read aloud or stumble over.
+    The model is asked for plain text, so this is a safety net.
+    """
+    text = _EMOJI_RE.sub("", text)
+    text = re.sub(r"^\s*#+\s*", "", text, flags=re.MULTILINE)       # headings
+    text = re.sub(r"^\s*[-*•]\s+", "", text, flags=re.MULTILINE)    # bullets
+    text = text.replace("**", "").replace("*", "").replace("`", "")  # bold/italic/code
+    text = re.sub(r"(?<!\w)__?(.+?)__?(?!\w)", r"\1", text)          # _italic_/__bold__
+    text = re.sub(r"[ \t]{2,}", " ", text)                           # gaps left behind
+    return text.strip()
+
+
+def format_for_tts(text: str, tone: str | None = None) -> str:
     """
     Take the plain reply text and reshape it a bit so TTS sounds more expressive:
       - shorter lines
@@ -199,12 +273,13 @@ def format_for_tts(text: str) -> str:
       - extra line breaks for important / emotional sentences
 
     We try to keep meaning intact while giving TTS more structure to work with.
+    If `tone` is not given, it is guessed from the text with detect_tone().
     """
-    text = text.strip()
+    text = _clean_for_speech(text)
     if not text:
         return text
 
-    tone = detect_tone(text)
+    tone = tone or detect_tone(text)
     sentences = _split_sentences(text)
 
     # First pass: gently soften any existing name at the start (sympathetic only)
@@ -217,8 +292,7 @@ def format_for_tts(text: str) -> str:
         for i, s in enumerate(sentences):
             lower_s = s.lower()
             if any(word in lower_s for word in ["sorry", "hard", "tough", "understand", "alone", "worried"]):
-                if not s.endswith("..."):
-                    s = s + "..."
+                s = _trail_off(s)
             shaped_lines.append(s)
             # Add blank line every 1–2 sentences for extra breathing room
             if i % 2 == 1:
@@ -240,12 +314,12 @@ def format_for_tts(text: str) -> str:
         if shaped_lines:
             last = shaped_lines[-1]
             if tone in (TONE_ENCOURAGING, TONE_REASSURING, TONE_PLAYFUL):
-                if not last.endswith(("!", "…", "...")):
-                    last = last + "..."
+                last = _trail_off(last)
             elif tone in (TONE_HAPPY, TONE_EXCITED):
                 # Excited/happy tends to land on a clear exclamation
-                if not last.endswith("!"):
-                    last = last + "!"
+                # (but leave questions as questions)
+                if not last.endswith(("!", "?")):
+                    last = last.rstrip(".…") + "!"
             shaped_lines[-1] = last
 
     elif tone == TONE_CAUTION:
