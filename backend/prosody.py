@@ -222,8 +222,9 @@ def _soften_existing_name(sentences: list[str], tone: str) -> list[str]:
     for idx, s in enumerate(sentences):
         # Only soften the first sentence; later ones can stay as-is
         if idx == 0:
-            # Match the user's name
-            m = re.match(r"^([A-Z][a-z]{1,20})([, ]+)(.*)$", s)
+            # Match the user's name; require a comma ("Alex, ...") so ordinary
+            # first words like "That sounds..." are not treated as names
+            m = re.match(r"^([A-Z][a-z]{1,20})(,\s*)(.*)$", s)
             if m:
                 name, sep, rest = m.groups()
                 rest = rest.lstrip()
@@ -236,6 +237,34 @@ def _soften_existing_name(sentences: list[str], tone: str) -> list[str]:
     return softened
 
 
+def _trail_off(s: str) -> str:
+    """End a sentence with a soft "..." instead of its period. Questions and
+    exclamations keep their punctuation."""
+    if s.endswith(("...", "…", "?", "!")):
+        return s
+    return s.rstrip(".") + "..."
+
+
+# Emoji and pictograph blocks only, so curly quotes (’) and ellipses (…) survive.
+_EMOJI_RE = re.compile(
+    "[\U0001F000-\U0001FAFF☀-➿⬀-⯿️‍]+"
+)
+
+
+def _clean_for_speech(text: str) -> str:
+    """
+    Remove markdown and emoji that TTS would read aloud or stumble over.
+    The model is asked for plain text, so this is a safety net.
+    """
+    text = _EMOJI_RE.sub("", text)
+    text = re.sub(r"^\s*#+\s*", "", text, flags=re.MULTILINE)       # headings
+    text = re.sub(r"^\s*[-*•]\s+", "", text, flags=re.MULTILINE)    # bullets
+    text = text.replace("**", "").replace("*", "").replace("`", "")  # bold/italic/code
+    text = re.sub(r"(?<!\w)__?(.+?)__?(?!\w)", r"\1", text)          # _italic_/__bold__
+    text = re.sub(r"[ \t]{2,}", " ", text)                           # gaps left behind
+    return text.strip()
+
+
 def format_for_tts(text: str, tone: str | None = None) -> str:
     """
     Take the plain reply text and reshape it a bit so TTS sounds more expressive:
@@ -246,7 +275,7 @@ def format_for_tts(text: str, tone: str | None = None) -> str:
     We try to keep meaning intact while giving TTS more structure to work with.
     If `tone` is not given, it is guessed from the text with detect_tone().
     """
-    text = text.strip()
+    text = _clean_for_speech(text)
     if not text:
         return text
 
@@ -263,8 +292,7 @@ def format_for_tts(text: str, tone: str | None = None) -> str:
         for i, s in enumerate(sentences):
             lower_s = s.lower()
             if any(word in lower_s for word in ["sorry", "hard", "tough", "understand", "alone", "worried"]):
-                if not s.endswith("..."):
-                    s = s + "..."
+                s = _trail_off(s)
             shaped_lines.append(s)
             # Add blank line every 1–2 sentences for extra breathing room
             if i % 2 == 1:
@@ -286,12 +314,12 @@ def format_for_tts(text: str, tone: str | None = None) -> str:
         if shaped_lines:
             last = shaped_lines[-1]
             if tone in (TONE_ENCOURAGING, TONE_REASSURING, TONE_PLAYFUL):
-                if not last.endswith(("!", "…", "...")):
-                    last = last + "..."
+                last = _trail_off(last)
             elif tone in (TONE_HAPPY, TONE_EXCITED):
                 # Excited/happy tends to land on a clear exclamation
-                if not last.endswith("!"):
-                    last = last + "!"
+                # (but leave questions as questions)
+                if not last.endswith(("!", "?")):
+                    last = last.rstrip(".…") + "!"
             shaped_lines[-1] = last
 
     elif tone == TONE_CAUTION:
