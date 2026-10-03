@@ -12,9 +12,16 @@ from voice import synthesize_speech
 from transcribe import transcribe_file
 from prosody import detect_tone, split_tone_tag, TONE_DESCRIPTIONS
 
-# ---- Conversation windowing / summarization settings ----
-MAX_TURNS_FOR_MODEL = 12  # how many recent messages (user+assistant) to send verbatim
-SUMMARY_TURN_THRESHOLD = 20  # only bother summarizing if history is this long or more
+# ---- Conversation windowing / summarization settings (per mode) ----
+# recent:            how many recent messages (user+assistant) to send verbatim
+# summary_threshold: only summarize older messages once history is this long
+# summary_words:     length budget for that summary
+# Therapist remembers the most: the user's story builds up over a session.
+MEMORY_BY_MODE = {
+    "friendly":  {"recent": 12, "summary_threshold": 20, "summary_words": 120},
+    "balanced":  {"recent": 16, "summary_threshold": 24, "summary_words": 160},
+    "therapist": {"recent": 30, "summary_threshold": 40, "summary_words": 300},
+}
 SUMMARY_MAX_CHARS_FALLBACK = 1000  # fallback length if summarization fails
 
 # Appended to every mode's system prompt: Zelda picks the avatar emotion herself
@@ -113,7 +120,7 @@ async def serve_frontend_index():
     """
     return RedirectResponse(url="/frontend/")
     
-def summarize_history_for_model(history_items: List[HistoryItem]) -> str:
+def summarize_history_for_model(history_items: List[HistoryItem], max_words: int = 120) -> str:
     """
     Summarize older parts of the conversation into a compact form to save tokens,
     similar to how ChatGPT truncates/summarizes long chats.
@@ -137,7 +144,9 @@ def summarize_history_for_model(history_items: List[HistoryItem]) -> str:
                     "content": (
                         "You are a concise summarizer of a conversation between a user and an AI companion "
                         "named Zelda. Summarize the key facts, themes, and emotional dynamics so far in "
-                        "no more than 120 words. Do NOT give advice or continue the conversation. Just summarize."
+                        f"no more than {max_words} words. Keep specifics the user shared (people, events, "
+                        "goals, what has or hasn't helped). Do NOT give advice or continue the conversation. "
+                        "Just summarize."
                     ),
                 },
                 {
@@ -145,7 +154,7 @@ def summarize_history_for_model(history_items: List[HistoryItem]) -> str:
                     "content": convo_text,
                 },
             ],
-            max_completion_tokens=180,
+            max_completion_tokens=max_words * 2,
         )
         summary = (completion.choices[0].message.content or "").strip()
         return summary or convo_text[:SUMMARY_MAX_CHARS_FALLBACK]
@@ -159,6 +168,7 @@ def build_messages_with_window_and_summary(
     system_prompt: str,
     history: Optional[List[HistoryItem]],
     latest_user_message: str,
+    memory: dict = MEMORY_BY_MODE["friendly"],
 ) -> List[dict]:
     """
     Build the messages list for the chat model:
@@ -166,7 +176,9 @@ def build_messages_with_window_and_summary(
     - (optional) summary of older history
     - recent turns verbatim
     - latest user message
+    `memory` is one of the MEMORY_BY_MODE entries.
     """
+    recent_count = memory["recent"]
 
     messages: List[dict] = [{"role": "system", "content": system_prompt}]
     history = history or []
@@ -177,17 +189,17 @@ def build_messages_with_window_and_summary(
         return messages
 
     # If history is short, we can send it all
-    if len(history) <= MAX_TURNS_FOR_MODEL:
+    if len(history) <= recent_count:
         for item in history:
             messages.append({"role": item.role, "content": item.content})
     else:
         # Split into older vs recent
-        older = history[:-MAX_TURNS_FOR_MODEL]
-        recent = history[-MAX_TURNS_FOR_MODEL:]
+        older = history[:-recent_count]
+        recent = history[-recent_count:]
 
-        if len(history) >= SUMMARY_TURN_THRESHOLD:
+        if len(history) >= memory["summary_threshold"]:
             # Summarize the older portion into a compact system-style note
-            summary_text = summarize_history_for_model(older)
+            summary_text = summarize_history_for_model(older, memory["summary_words"])
             messages.append(
                 {
                     "role": "system",
@@ -219,6 +231,7 @@ async def chat(req: ChatRequest):
     """
 
     mode = (req.mode or "friendly").lower()
+    memory = MEMORY_BY_MODE.get(mode, MEMORY_BY_MODE["friendly"])
 
     if mode == "therapist":
         system_prompt = (
@@ -290,6 +303,7 @@ async def chat(req: ChatRequest):
         system_prompt=system_prompt + TONE_AND_FORMAT_INSTRUCTIONS,
         history=req.history,
         latest_user_message=req.message,
+        memory=memory,
     )
 
 
@@ -337,7 +351,7 @@ async def chat(req: ChatRequest):
             # Build a short transcript of the last few turns so the backup
             # still “remembers” what you were talking about.
             if req.history:
-                recent = req.history[-14:]  # last 7 turns (you can tweak this)
+                recent = req.history[-memory["recent"]:]
                 convo_lines = []
                 for item in recent:
                     speaker = "User" if item.role == "user" else "Zelda"
