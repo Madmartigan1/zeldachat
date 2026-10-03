@@ -20,6 +20,51 @@ TONE_PLAYFUL      = "playful"
 TONE_INTRIGUED    = "intrigued"
 TONE_CAUTION      = "caution"
 
+# One-line meaning per tone, used to tell the chat model which tags it may pick.
+# Keys must match the frontend's toneToVideo map and backend/video/zelda_<tone>.mp4.
+TONE_DESCRIPTIONS = {
+    TONE_NEUTRAL:     "calm, matter-of-fact",
+    TONE_HAPPY:       "glad, warm, pleased for the user",
+    TONE_EXCITED:     "high-energy, thrilled",
+    TONE_PLAYFUL:     "teasing, joking, light",
+    TONE_INTRIGUED:   "curious, interested, thinking it over",
+    TONE_ENCOURAGING: "motivating, cheering the user on, firm but supportive",
+    TONE_REASSURING:  "soothing, calming worries",
+    TONE_SYMPATHETIC: "validating pain, gentle compassion",
+    TONE_BUMMED:      "disappointed or sad on the user's behalf",
+    TONE_CAUTION:     "warning, serious, being straight about a risk or a hard truth",
+}
+TONES = set(TONE_DESCRIPTIONS)
+
+# A bracketed tag at the very start, e.g. "[happy]", "**[Happy]**", "[tone: happy]",
+# optionally followed by the reply on the same line.
+_TONE_BRACKET_RE = re.compile(r"^[\s*_`]*\[\s*(?:tone\s*:\s*)?([a-z]+)\s*\][*_`]*[ \t]*", re.IGNORECASE)
+# A first line that is only "Tone: happy" or "happy".
+_TONE_LINE_RE = re.compile(r"^[\s*_`]*(?:tone\s*:\s*)?([a-z]+)[\s*_`]*$", re.IGNORECASE)
+
+
+def split_tone_tag(text: str) -> tuple[str | None, str]:
+    """
+    If the model's reply starts with a valid tone tag, return
+    (tone, text_without_tag). Otherwise return (None, text) unchanged.
+    """
+    if not text:
+        return None, text
+    stripped = text.lstrip()
+
+    m = _TONE_BRACKET_RE.match(stripped)
+    if m:
+        # Drop the tag even if the tone is unknown, so it never reaches the UI.
+        tone = m.group(1).lower()
+        return (tone if tone in TONES else None), stripped[m.end():].strip()
+
+    first, _, rest = stripped.partition("\n")
+    m = _TONE_LINE_RE.match(first)
+    if m and m.group(1).lower() in TONES:
+        return m.group(1).lower(), rest.strip()
+
+    return None, text
+
 
 def detect_tone(text: str) -> str:
     """
@@ -191,7 +236,7 @@ def _soften_existing_name(sentences: list[str], tone: str) -> list[str]:
     return softened
 
 
-def format_for_tts(text: str) -> str:
+def format_for_tts(text: str, tone: str | None = None) -> str:
     """
     Take the plain reply text and reshape it a bit so TTS sounds more expressive:
       - shorter lines
@@ -199,12 +244,13 @@ def format_for_tts(text: str) -> str:
       - extra line breaks for important / emotional sentences
 
     We try to keep meaning intact while giving TTS more structure to work with.
+    If `tone` is not given, it is guessed from the text with detect_tone().
     """
     text = text.strip()
     if not text:
         return text
 
-    tone = detect_tone(text)
+    tone = tone or detect_tone(text)
     sentences = _split_sentences(text)
 
     # First pass: gently soften any existing name at the start (sympathetic only)

@@ -10,12 +10,39 @@ import time
 from openai import OpenAI, RateLimitError
 from voice import synthesize_speech
 from transcribe import transcribe_file
-from prosody import detect_tone
+from prosody import detect_tone, split_tone_tag, TONE_DESCRIPTIONS
 
 # ---- Conversation windowing / summarization settings ----
 MAX_TURNS_FOR_MODEL = 12  # how many recent messages (user+assistant) to send verbatim
 SUMMARY_TURN_THRESHOLD = 20  # only bother summarizing if history is this long or more
 SUMMARY_MAX_CHARS_FALLBACK = 1000  # fallback length if summarization fails
+
+# Appended to every mode's system prompt: Zelda picks the avatar emotion herself
+# (drives the video clip and TTS shaping), and replies in plain text because the
+# UI shows it raw and TTS reads it aloud.
+TONE_AND_FORMAT_INSTRUCTIONS = (
+    "\n\nOUTPUT FORMAT (always follow):\n"
+    "- The FIRST line of every reply is only a tag naming the emotion your face should show, "
+    "in square brackets, e.g. [sympathetic]. Then your reply starts on the next line.\n"
+    "- Choose exactly one of these tags:\n"
+    + "\n".join(f"  [{tone}] - {desc}" for tone, desc in TONE_DESCRIPTIONS.items())
+    + "\n- Write plain text only: no markdown, no asterisks, no bold or italics, no headings. "
+    "Numbered points like '1.' are fine.\n"
+)
+
+
+def resolve_tone(raw_reply: str, label: str) -> tuple[str, str]:
+    """
+    Split the model's leading tone tag off its reply. Falls back to keyword
+    detection when no valid tag is present. Returns (reply_text, tone).
+    """
+    tone, reply_text = split_tone_tag((raw_reply or "").strip())
+    if tone:
+        print(f"[Zelda TONE] {label}: tag -> {tone}")
+    else:
+        tone = detect_tone(reply_text)
+        print(f"[Zelda TONE] {label}: no valid tag, keyword fallback -> {tone}")
+    return reply_text, tone
 
 def load_api_key() -> str:
     """
@@ -254,7 +281,7 @@ async def chat(req: ChatRequest):
     # - older turns summarized (if long)
     # - recent turns sent verbatim
     messages = build_messages_with_window_and_summary(
-        system_prompt=system_prompt,
+        system_prompt=system_prompt + TONE_AND_FORMAT_INSTRUCTIONS,
         history=req.history,
         latest_user_message=req.message,
     )
@@ -271,7 +298,7 @@ async def chat(req: ChatRequest):
         choice = completion.choices[0]
         finish_reason = getattr(choice, "finish_reason", None)
         raw_content = choice.message.content
-        reply_text = (raw_content or "").strip()
+        reply_text, tone = resolve_tone(raw_content, "primary")
 
         # Debug: see what finish_reason is when things go weird
         print(
@@ -319,7 +346,7 @@ async def chat(req: ChatRequest):
                 recent_context = req.message
 
             backup_messages = [
-                {"role": "system", "content": backup_system},
+                {"role": "system", "content": backup_system + TONE_AND_FORMAT_INSTRUCTIONS},
                 {"role": "user", "content": recent_context},
             ]
 
@@ -332,15 +359,12 @@ async def chat(req: ChatRequest):
             backup_choice = backup_completion.choices[0]
             backup_finish_reason = getattr(backup_choice, "finish_reason", None)
             backup_raw = backup_choice.message.content
-            reply_text = (backup_raw or "").strip()
+            reply_text, tone = resolve_tone(backup_raw, "backup")
 
             print(
                 f"[Zelda DEBUG] backup mode={mode}, finish_reason={backup_finish_reason}, "
                 f"reply_len={len(reply_text)}"
             )
-
-
-        tone = detect_tone(reply_text)
 
     except RateLimitError:
         reply_text = (
@@ -356,7 +380,7 @@ async def chat(req: ChatRequest):
         return ChatResponse(reply=reply_text, audio_url=None, tone=tone)
 
     # Generate audio for the reply
-    audio_url = synthesize_speech(reply_text)
+    audio_url = synthesize_speech(reply_text, tone)
 
     return ChatResponse(reply=reply_text, audio_url=audio_url, tone=tone)
 
