@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ZeldaChat: a voice-enabled AI companion. A FastAPI backend (`backend/`) wraps OpenAI chat, TTS, and transcription; a single-file HTML/JS frontend (`frontend/index.html`) shows chat, records mic audio, plays TTS, and swaps pre-rendered SadTalker avatar clips based on the reply's emotional tone.
 
-Product goal: a realistic, emotionally expressive avatar face whose persona balances empathy with tough love. Changes to prompts, tone detection, prosody, or avatar clips should serve that.
+Product goal: a realistic, emotionally expressive avatar face whose persona balances empathy with tough love. She is loved and respected (even by people who resent her for being right) and doesn't cave: under pushback she holds her ground with logic and reason, and changes her mind only for a better argument or new facts. That core character lives in `ZELDA_CORE_CHARACTER` in `main.py`, shared by all modes; the modes only set style. Changes to prompts, tone detection, prosody, or avatar clips should serve this. When testing persona changes, include a multi-turn pushback (pressure should not move her; new facts should).
 
 ## Commands
 
